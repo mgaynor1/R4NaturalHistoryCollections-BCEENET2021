@@ -8,10 +8,13 @@ Workshop material for BCEENET 2021 Virtual Meeting.
 This workshop reviews cleaning, mapping, and analyzing natural history collections data in R. It will review point sampling and extracting elevation data from occurrence records, as well as how to run an ANOVA based on this data.
 
 # Pre-workshop.  
-Before this workshop, make sure to either download all the files included on this github or 
+Before this workshop, make sure to at least download the R4dNHC folder (which I compressed for easy download). This has all the necessary datafiles and functions needed to run through the workshop during the session. Make sure to run through the 00_Setup.R script as well to make sure all needed packages are installed. 
 
 
 # File Information 
+The **R4dNHC/** folder does not contain 01_CleaningData.R., 02_Mapping.R, 03_PointStats.R - which I plan to live code during the workshop.  
+
+The **R4Research-BCEENET2021/** folder contains all scripts and some extras:  
 00_Setup.R.    
 - Download and install needed packages. 
     
