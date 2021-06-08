@@ -4,7 +4,14 @@ Workshop material for BCEENET 2021 Virtual Meeting.
 **Date**: June 15th, 2021, 2:00pm - 4:00pm     
 **Length**: 2 hours. 
 
-# Outline  
+# Workshop Goal   
+This workshop reviews cleaning, mapping, and analyzing natural history collections data in R. It will review point sampling and extracting elevation data from occurrence records, as well as how to run an ANOVA based on this data.
+
+# Pre-workshop.  
+Before this workshop, make sure to either download all the files included on this github or 
+
+
+# File Information 
 00_Setup.R.    
 - Download and install needed packages. 
     
