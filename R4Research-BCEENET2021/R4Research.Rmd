@@ -1,0 +1,601 @@
+---
+output:
+rmarkdown::html_document:
+    theme: lumen
+    toc_depth: 5
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(knitr)
+library(kableExtra)
+library(pander)
+```
+
+# Using R for dNHC Research {.tabset .tabset-fade .tabset-pills}
+
+## Setup
+
+See 00\_Setup.R
+
+### Check installed packages
+
+Create a list of required packages
+
+```{r eval=FALSE, include=TRUE}
+list.of.packages <- c("dplyr", # v.0.8.5
+                      "tidyr", # v.1.0.2
+                      "plyr", # v.1.8.6
+                      "spocc", # v.1.0.8
+                      "ridigbio", # v.0.3.5
+                      "tibble", # v.3.0.0
+                      "rbison",
+                      "CoordinateCleaner",
+                      "lubridate",
+                      "ggplot2",
+                      "gtools",
+                      "leaflet", 
+                      "sp", 
+                      "rgeos", 
+                      "ggspatial", 
+                      "raster", 
+                      "agricolae", 
+                      "gridExtra")
+
+```
+
+### Compare to installed packages
+
+Compare list of required to installed packages. Retain only missing packages (!).
+
+```{r eval=FALSE, include=TRUE}
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+```
+
+### Install missing packages
+
+Run for loop to install any missing packages. This loops through the list of new.packages and installs each.
+
+```{r eval=FALSE, include=TRUE}
+for(i in 1:length(new.packages)){
+  install.packages(new.packages[i])
+} 
+```
+
+## Cleaning Data
+
+See 01_CleaningData.R     
+Download data and clean it.    
+
+### Load Packages
+
+```{r message=FALSE, warning=FALSE}
+library(CoordinateCleaner)
+library(lubridate)
+```
+
+### Load Functions
+
+This is a function I created with Natalie Patten (a very talent undergrad at UF). It will be part of her R package gatoRs (Geographic And Taxonomic Occurrence R-based Scrubbing).
+
+```{r message=FALSE, warning=FALSE}
+source("functions/DownloadingDataMore.R")
+```
+
+### Download Shortia galacifolia
+
+Use spocc\_combined to create a csv containing occurrence records from iDigBio, GBIF, and BISON. Find out more about this function [here](https://github.com/mgaynor1/long-winded-scripts/tree/master/OccurrenceData).
+
+```{r}
+spocc_combine("Shortia galacifolia", "data/Shortia_galacifolia_raw.csv")
+```
+
+### Read in downloaded data frame
+
+```{r}
+rawdf <- read.csv("data/Shortia_galacifolia_raw.csv")
+```
+
+------------------------------------------------------------------------
+
+### Cleaning
+
+#### Inspect data frame
+
+**What columns are included?**
+
+```{r}
+names(rawdf)
+```
+
+**How many observations do we start with?**
+
+```{r}
+nrow(rawdf)
+```
+
+#### <span style="color: blue;"> 1. Resolve taxon names </span>
+
+Inspect scientific names included in the raw df.
+
+```{r}
+unique(rawdf$name)
+```
+
+Create a list of accepted names based on the name column in your data frame
+
+```{r}
+search <-  c("Shortia galacifolia")
+```
+
+Filter to only include accepted namesUsing the R package dplyr, we:
+  1.  Filter the data frame to only include rows with the accepted names.
+  2.  Filter out any rows with NA for dwc.scientificName.
+  3.  Create a column called name and set it equal to "Shortia galacifolia".
+
+```{r}
+df <- rawdf %>% 
+      filter(grepl(search, name, ignore.case =  TRUE)) %>% 
+      mutate(new.name = "Shortia galacifolia")
+```
+
+**How many observations do we have now?**
+
+```{r}
+nrow(df)
+```
+
+#### <span style="color: blue;"> 2. Decrease number of columns </span>
+
+##### Merge the two locality columns
+
+```{r}
+df$Latitude <-  dplyr::coalesce(df$Latitude, df$spocc.latitude)
+df$Longitude <-  dplyr::coalesce(df$Longitude, df$spocc.longitude)
+```
+
+##### Merge the two date columns
+
+```{r}
+df$date <-  dplyr::coalesce(df$date, df$spocc.date)
+```
+
+##### Subset columns
+Using the R package dplyr, we select and rename columns.   
+
+```{r}
+df <- df %>% 
+      dplyr::select(ID = ID,
+                name = new.name,
+                basis = basis,
+                coordinateUncertaintyInMeters = coordinateUncertaintyInMeters,
+                informationWithheld = informationWithheld,
+                lat = Latitude,
+                long = Longitude,
+                date = date)
+```
+
+#### <span style="color: blue;"> 3. Clean localities </span>
+
+##### Remove NAs
+
+Using the R package dplyr, we:
+    1. Filter out(!) any rows where long 'is.na'.
+    2. Filter out(!) any rows where lat 'is.na'.
+
+```{r}
+df <- df %>% 
+      filter(!is.na(long)) %>% 
+      filter(!is.na(lat))
+```
+
+**How many observations do we have now?**
+
+```{r}
+nrow(df)
+```
+
+##### Fix precision
+
+Using the R base function 'round', we round lat and long to two decimal places.
+
+```{r}
+df$lat <- round(df$lat, digits = 2)
+df$long <- round(df$long, digits = 2)
+```
+
+##### Remove unlikely points
+
+Remove points at 0.00, 0.00 Using the R package dplyr, we:  
+    1. Filter to retain rows where long is NOT(!) equal to 0.00.
+    2. Filter to retain rows where long is NOT(!) equal to 0.00.
+
+```{r}
+df <- df %>% 
+      filter(long != 0.00) %>% 
+      filter(lat != 0.00)
+```
+
+##### Remove bad coordinates
+
+Remove coordinates in cultivated zones, botanical gardens, and outside our desired range Using the R package CoordinateCleaner, we first if points are at biodiversity institutions and remove any points that are occurring at institutions.
+
+```{r}
+df <- cc_inst(df, 
+              lon = "long",
+              lat = "lat",
+              species = "name")
+```
+
+Next, we look for geographic outliers and remove outliers.
+
+```{r}
+df <- cc_outl(df,
+              lon = "long",
+              lat = "lat",
+              species = "name")
+```
+
+**How many observations do we have now?**
+
+```{r}
+nrow(df)
+```
+
+#### <span style="color: blue;"> 4. Remove Duplicates </span>
+
+##### Fix dates
+
+Using the R package lubridate, we first parse the date into the same format.
+
+```{r}
+df$date <- lubridate::ymd(df$date)
+```
+
+Next you are going to seperate date into year, month, and day - where every column only contains one set of information.
+
+```{r}
+df <- df %>% 
+      dplyr::mutate(year = lubridate::year(date),
+                month = lubridate::month(date),
+                day = lubridate::day(date))
+```
+
+#### Remove rows with identical lat, long, year, month, and day
+
+If a specimen shares lat, long, and event date we are assuming that it is identical. Many specimen lack date and lat/long, so this may be getting rid of information you would want to keep.
+
+```{r}
+df <- distinct(df, lat, long, year, month, day, .keep_all = TRUE)
+```
+
+**How many observations do we have now?**
+
+```{r}
+nrow(df)
+```
+
+#### <span style="color: blue;"> 5. Save Cleaned .csv </span>
+
+```{r}
+write.csv(df, "data/Shortia_galacifolia_061521-cleaned.csv", row.names = FALSE)
+```
+
+## Mapping
+
+See 02_Mapping.R.    
+Map occurrence records using ggplot2 and leaflet.       
+
+### Load Packages
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(leaflet)
+library(sp)
+library(rgeos)
+library(ggspatial)
+```
+
+### Read data file
+
+```{r}
+df <- read.csv("data/Shortia_galacifolia_061521-cleaned.csv")
+```
+
+### <span style="color: blue;"> Map using ggplot2 </span>
+Make a simple map using ggplot2.
+
+#### Set base maps  
+
+Here we download a USA map, a state level USA map, and a county level USA map.
+
+```{r}
+USA <- borders(database = "usa", colour = "gray50", fill = "gray50")
+states <-  borders("state", colour = "black", fill = NA)
+county <- borders(database = "county", colour = "gray40", fill = NA)
+```
+
+#### Plot
+
+Here we are going to add our USA map and the occurrence points. Next, we zoom into our area of interest. Then, we fix the x and y labels. Finally, we add a scale and a north arrow
+
+```{r}
+simple_map <- ggplot() +
+              USA +
+              # Better to add state or county here - order matters! 
+              geom_point(df, 
+                         mapping = aes(x = long, y = lat), 
+                         col = "blue") +
+              coord_sf(xlim = c(-86, -76), ylim = c(30, 38)) +
+              xlab("Longitude") +
+              ylab("Latitude") +
+              annotation_scale() +
+              annotation_north_arrow( height = unit(1, "cm"),
+                                      width = unit(1, "cm"), 
+                                      location = "tl")
+```
+
+```{r message=FALSE, warning=FALSE}
+simple_map
+```
+
+##### Add States
+
+```{r message=FALSE, warning=FALSE}
+simple_map + states
+```
+
+##### Add Counties
+
+```{r message=FALSE, warning=FALSE}
+simple_map + county
+```
+
+### <span style="color: blue;"> Map using Leaflet </span>
+
+Find out more about [leaflet here](https://rstudio.github.io/leaflet/). Basically it uses JavaScript to make interactive maps.   
+   
+#### Make points spatial     
+
+```{r}
+pts <- SpatialPoints(df[,7:6])
+```
+
+#### Make a simple leaflet map  
+
+```{r}
+m <- leaflet(pts) %>% 
+     addCircles() %>% 
+     addTiles() 
+m
+```
+
+#### Set extent and zoom out
+
+```{r}
+m <- fitBounds(m, -86, 30, -76, 38)
+m
+```
+
+#### Make fancy icon
+
+```{r}
+ShortiaIcon <- makeIcon(
+  iconUrl = "https://live.staticflickr.com/2914/32392790054_27192e77e6_b.jpg",
+  iconWidth = 18, iconHeight = 28,
+  iconAnchorX = 17, iconAnchorY = 27
+)
+
+m <- leaflet(pts) %>% 
+     addTiles()  %>% 
+     addMarkers(icon = ShortiaIcon) 
+m
+```
+
+#### Add label to see long, lat
+
+```{r}
+m <- leaflet(pts) %>% 
+     addTiles()  %>% 
+     addMarkers(label = paste0(df$long, ", ", df$lat))  
+m 
+```
+
+#### Add rectangle marking extent
+
+```{r}
+m <- leaflet(pts) %>% 
+     addTiles()  %>% 
+     addMarkers(label = paste0(df$long, ", ", df$lat))   %>%
+     addRectangles(
+        lng1 = max(df$long), lat1 = max(df$lat),
+        lng2 = min(df$long), lat2 = min(df$lat),
+        fillColor = "transparent")
+m
+```
+
+## Point Statistics
+
+See 03_PointStats.R.     
+Point sample and run a simple ANOVA.   
+
+### Load Packages
+
+```{r message=FALSE, warning=FALSE}
+library(gtools)
+library(raster)
+library(dplyr)
+library(tibble)
+library(agricolae)
+library(gridExtra)
+```
+
+### Read data files
+
+```{r}
+dfS <- read.csv("data/Shortia_galacifolia_061521-cleaned.csv")
+dfG <- read.csv("data/Galax_urceolata_061521-cleaned.csv")
+```
+
+### Modify the data frame
+
+#### Combined the two df
+
+```{r}
+df <- rbind(dfS, dfG)
+```
+
+#### Subset spatial points
+
+```{r}
+pts <- SpatialPoints(df[,7:6])
+```
+
+### Import BioClim files
+
+#### List BioClim files
+
+```{r}
+list <- list.files("data/bio/", 
+                    full.names = TRUE,
+                    recursive = FALSE)
+```
+
+#### Order list using gtools
+
+```{r}
+list <- mixedsort(sort(list))
+```
+
+#### Load the rasters
+
+```{r}
+envtStack <- raster::stack(list)
+```
+
+### Point Sample
+
+##### Extract value for each point
+
+```{r}
+ptExtracted <- raster::extract(envtStack, pts)
+```
+
+#### Convert to data frame
+
+```{r}
+ptExtracteddf <- as.data.frame(ptExtracted)
+```
+
+#### Add species name
+
+```{r}
+ptExtracteddf <- ptExtracteddf %>%
+                 mutate(name = as.character(df$name))
+```
+
+### ANOVA
+
+ANOVA or an analysis of variance. To run an ANOVA, you first set the linear model using lm. Next, the aov function will run the ANOVA.
+
+```{r}
+bio1aov <- aov(lm(ptExtracteddf[, 1] ~ name, data = ptExtracteddf))
+bio1aov
+```
+
+#### Tukey HSD test
+
+Here we will do a multiple comparisons of treatments by means of Tukey.
+
+```{r}
+b1 <- HSD.test(bio1aov, trt = "name", alpha = 0.05)  
+b1
+```
+
+#### Separate the groups
+
+```{r}
+bio1_group <- b1$groups
+bio1_group <- rownames_to_column(bio1_group, var = "name")
+bio1_group <- bio1_group %>%
+              dplyr::select(name, groups)
+bio1_group
+```
+
+#### Subset from the original df
+
+Here we subset the name and bio\_1 column from the original df.
+
+```{r}
+part <- ptExtracteddf %>%
+        dplyr::select(name, bio_1)
+```
+
+#### Join the subset df to the bio1\_group data frame
+
+```{r}
+bio1pl <- left_join(part, bio1_group, by = "name")
+```
+
+#### Plot
+
+```{r message=FALSE, warning=FALSE}
+bio1_aov_plot <- ggplot(bio1pl, aes(x = name, y = bio_1)) +
+                  geom_boxplot(aes(fill = groups)) +
+                  geom_text(data = bio1_group, 
+                            mapping = aes(x = name,
+                                          y = 20, 
+                                          label = groups), 
+                            size = 5, inherit.aes = FALSE) +
+                  theme(axis.text.x = element_text(angle = 90, 
+                                                   size = 8, 
+                                                   face = 'italic'))
+bio1_aov_plot
+```
+
+#### Loop through all variables
+
+First, set a list of the variable names and an empty list to store the resulting plots in.
+
+```{r}
+variablelist <- colnames(ptExtracteddf)[1:20]
+plotlist <- c()
+```
+
+```{r}
+for(i in 1:20){
+      ### ANOVA 
+      bioaov <- aov(lm(ptExtracteddf[, i] ~ name, data = ptExtracteddf))
+      ### Tukey HSD test
+      b <- HSD.test(bioaov, trt = "name", alpha = 0.05)    
+      ### Separate the groups
+      bio_group <- b$groups
+      bio_group <- rownames_to_column(bio_group, var = "name")
+      bio_group <- bio_group %>%
+                   dplyr::select(name, groups)
+      ### Subset from the original df
+      part <- ptExtracteddf %>%
+              dplyr::select(name, variablelist[i])
+      #### Join the subset df to the bio_group data frame
+      biopl <- left_join(part, bio_group, by = "name")
+      #### Plot
+      plotlist[[i]] <- ggplot(biopl, aes(x = name, y = biopl[,2])) +
+                       geom_boxplot(aes(fill = groups)) +
+                       geom_text(data = bio_group, 
+                                mapping = aes(x = name,
+                                              y = (max(na.omit(biopl[,2]))* 1.3), 
+                                              label = groups), 
+                                size = 5, inherit.aes = FALSE) +
+                               scale_x_discrete(labels = c('G', 'S')) +
+                       ggtitle(label  = paste(variablelist[i]))
+      
+}
+```
+
+```{r fig.height=20, fig.width=12, message=FALSE, warning=FALSE}
+gridExtra::grid.arrange(grobs = plotlist)
+```
