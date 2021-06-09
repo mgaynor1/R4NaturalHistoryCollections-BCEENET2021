@@ -1,5 +1,7 @@
 # Using R for Digitized Natural History Collections (dNHC) in Research        
 Workshop material for BCEENET 2021 Virtual Meeting.
+See the html for this workshop: http://mlgaynor.com/R4NaturalHistoryCollections-BCEENET2021/R4Research-BCEENET2021/R4Research.html     
+
 
 **Date**: June 15th, 2021, 2:00pm - 4:00pm     
 **Length**: 2 hours. 
