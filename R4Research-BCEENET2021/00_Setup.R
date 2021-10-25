@@ -21,7 +21,8 @@ list.of.packages <- c("dplyr", # v.0.8.5
                       "ggspatial", 
                       "raster", 
                       "agricolae", 
-                      "gridExtra")
+                      "gridExtra", 
+                     "sf")
 
 # Compare list of required to installed packages
 ## Retain only missing packages
