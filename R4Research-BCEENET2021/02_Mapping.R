@@ -12,6 +12,7 @@ library(ggspatial)
 
 # Read data file
 df <- read.csv("data/Shortia_galacifolia_061521-cleaned.csv")
+df_fixed <- st_as_sf(df, coords = c("long", "lat"), crs = 4326)
 
 # Map using ggplot2
 ## Simple Map
@@ -30,8 +31,8 @@ county <- borders(database = "county", colour = "gray40", fill = NA)
 simple_map <- ggplot() +
               USA +
               # Better to add state or county here - order matters! 
-              geom_point(df, 
-                         mapping = aes(x = long, y = lat), 
+              geom_sf(df_fixed, 
+                         mapping = aes(col = name), 
                          col = "blue") +
               coord_sf(xlim = c(-86, -76), ylim = c(30, 38)) +
               xlab("Longitude") +
