@@ -9,6 +9,7 @@ library(leaflet)
 library(sp)
 library(rgeos)
 library(ggspatial)
+library(sf)
 
 # Read data file
 df <- read.csv("data/Shortia_galacifolia_061521-cleaned.csv")
